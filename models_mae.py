@@ -217,7 +217,8 @@ class MaskedAutoencoderViT(nn.Module):
         latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
         pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
         loss = self.forward_loss(imgs, pred, mask)
-        return loss, pred, mask
+        reconstructed_image = self.unpatchify(pred)
+        return loss, pred, mask, reconstructed_image
 
 
 def mae_vit_base_patch16_dec512d8b(**kwargs):

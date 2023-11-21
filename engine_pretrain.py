@@ -16,6 +16,7 @@ import torch
 
 import util.misc as misc
 import util.lr_sched as lr_sched
+from util.datasets import visualize_image
 
 
 def train_one_epoch(model: torch.nn.Module,
@@ -43,10 +44,12 @@ def train_one_epoch(model: torch.nn.Module,
             lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
 
         samples = samples.to(device, non_blocking=True)
-
         with torch.cuda.amp.autocast():
-            loss, _, _ = model(samples, mask_ratio=args.mask_ratio)
-
+            loss, _, _, reconstructed_images = model(samples, mask_ratio=args.mask_ratio)
+        p = torch.rand(1)
+        if p < 0.1:
+            visualize_image(samples[0], "./sample_image.png")
+            visualize_image(reconstructed_images[0], "./sample_reconstruction.png")
         loss_value = loss.item()
 
         if not math.isfinite(loss_value):
