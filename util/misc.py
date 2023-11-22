@@ -20,6 +20,8 @@ import torch
 import torch.distributed as dist
 from torch import inf
 
+import wandb
+
 
 class SmoothedValue(object):
     """Track a series of values and provide access to smoothed values over a

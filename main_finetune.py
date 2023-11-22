@@ -17,6 +17,8 @@ import os
 import time
 from pathlib import Path
 
+import wandb
+
 import torch
 import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
@@ -154,11 +156,20 @@ def get_args_parser():
     parser.add_argument('--dist_on_itp', action='store_true')
     parser.add_argument('--dist_url', default='env://',
                         help='url used to set up distributed training')
-
+    
+    # misc
+    parser.add_argument('--use_wandb', action='store_true', default=False)
+    parser.add_argument('--project_name', default='', type=str,
+                        help='wandb project name')
+    parser.add_argument('--sweep_config_path', type=str,
+                        help='sweep config file to load from')
+    parser.add_argument('--sweep_count', type=int, default=1,
+                        help='number of wandb exps in one sweep to run')
     return parser
 
-
 def main(args):
+    if args.use_wandb:
+        wandb.init(project=args.project_name)
     if args.distributed:
         misc.init_distributed_mode(args)
 
@@ -359,4 +370,10 @@ if __name__ == '__main__':
     args = args.parse_args()
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    main(args)
+    if args.use_wandb:
+        sweep_configuration = json.load(open(args.sweep_config_path, "r"))
+        sweep_id = wandb.sweep(sweep=sweep_configuration, project=args.project_name)
+        wandb.agent(sweep_id, function=main, count=args.sweep_count)
+    else:
+        main(args)
+    

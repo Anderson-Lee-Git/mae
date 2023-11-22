@@ -16,6 +16,8 @@ import os
 import time
 from pathlib import Path
 
+import wandb
+
 import torch
 import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
@@ -105,7 +107,11 @@ def get_args_parser():
     parser.add_argument('--dist_on_itp', action='store_true')
     parser.add_argument('--dist_url', default='env://',
                         help='url used to set up distributed training')
-
+    # misc
+    parser.add_argument('--use_wandb', action='store_true', default=False)
+    parser.add_argument('--project_name', default='', type=str,
+                        help='wandb project name')
+    
     return parser
 
 def adjust_args(args):
@@ -115,11 +121,16 @@ def adjust_args(args):
         args.input_size = 224
 
 def main(args):
-    if args.distributed:
-        misc.init_distributed_mode(args)
-
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))
+
+    if args.use_wandb:
+        wandb.init(project=args.project_name)
+        # args.__dict__.update(wandb.config.__dict__)
+        args.output_dir = os.path.join(args.output_dir, wandb.run.name)
+        args.log_dir = os.path.join(args.log_dir, wandb.run.name)
+    if args.distributed:
+        misc.init_distributed_mode(args)
 
     device = torch.device(args.device)
 
@@ -216,10 +227,15 @@ def main(args):
                 log_writer.flush()
             with open(os.path.join(args.output_dir, "log.txt"), mode="a", encoding="utf-8") as f:
                 f.write(json.dumps(log_stats) + "\n")
+        if args.use_wandb:
+            wandb.log(log_stats)
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
+
+    if args.use_wandb:
+        wandb.finish()
 
 
 if __name__ == '__main__':

@@ -196,7 +196,6 @@ def visualize_image(img: torch.Tensor, path: str):
     # if passed in batched images
     if len(img.shape) > 3:
         img = img[0]
-    print(f"visualize image shape = {img.shape}")
     mean = IMAGENET_DEFAULT_MEAN
     std = IMAGENET_DEFAULT_STD
     img = img * torch.tensor(std).cuda().view(3, 1, 1) + torch.tensor(mean).cuda().view(3, 1, 1)
@@ -205,3 +204,4 @@ def visualize_image(img: torch.Tensor, path: str):
     fig = plt.figure(figsize=(10, 10))
     plt.imshow(img)
     fig.savefig(path)
+    plt.clf()

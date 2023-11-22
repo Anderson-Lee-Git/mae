@@ -11,6 +11,7 @@
 import math
 import sys
 from typing import Iterable
+import os
 
 import torch
 
@@ -46,10 +47,7 @@ def train_one_epoch(model: torch.nn.Module,
         samples = samples.to(device, non_blocking=True)
         with torch.cuda.amp.autocast():
             loss, _, _, reconstructed_images = model(samples, mask_ratio=args.mask_ratio)
-        p = torch.rand(1)
-        if p < 0.1:
-            visualize_image(samples[0], "./examples/sample_image.png")
-            visualize_image(reconstructed_images[0], "./examples/sample_reconstruction.png")
+        
         loss_value = loss.item()
 
         if not math.isfinite(loss_value):
@@ -78,7 +76,13 @@ def train_one_epoch(model: torch.nn.Module,
             log_writer.add_scalar('train_loss', loss_value_reduce, epoch_1000x)
             log_writer.add_scalar('lr', lr, epoch_1000x)
 
-
+    # visualize the last batch randomly
+    p = torch.rand(1)
+    if p < 0.02:
+        if not os.path.exists(os.path.join(args.log_dir, "examples")):
+            os.makedirs(os.path.join(args.log_dir, "examples"))
+        visualize_image(samples[0], os.path.join(args.log_dir, "examples/sample_image.png"))
+        visualize_image(reconstructed_images[0], os.path.join(args.log_dir, "examples/sample_reconstruction.png"))
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
