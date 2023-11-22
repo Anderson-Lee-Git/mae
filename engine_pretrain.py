@@ -48,8 +48,8 @@ def train_one_epoch(model: torch.nn.Module,
             loss, _, _, reconstructed_images = model(samples, mask_ratio=args.mask_ratio)
         p = torch.rand(1)
         if p < 0.1:
-            visualize_image(samples[0], "./sample_image.png")
-            visualize_image(reconstructed_images[0], "./sample_reconstruction.png")
+            visualize_image(samples[0], "./examples/sample_image.png")
+            visualize_image(reconstructed_images[0], "./examples/sample_reconstruction.png")
         loss_value = loss.item()
 
         if not math.isfinite(loss_value):

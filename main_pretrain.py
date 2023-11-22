@@ -29,7 +29,7 @@ import timm.optim.optim_factory as optim_factory
 
 import util.misc as misc
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
-from util.datasets import build_dataset 
+from util.datasets import build_dataset
 
 import models_mae
 
@@ -84,6 +84,8 @@ def get_args_parser():
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--resume', default='',
                         help='resume from checkpoint')
+    parser.add_argument('--dataset', default='tiny_imagenet', type=str, help='dataset option')
+    parser.add_argument('--data_group', default=1, type=int, help='which data group')
 
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
@@ -106,6 +108,11 @@ def get_args_parser():
 
     return parser
 
+def adjust_args(args):
+    if args.dataset == "tiny_imagenet":
+        args.input_size = 64
+    else:
+        args.input_size = 224
 
 def main(args):
     if args.distributed:
@@ -122,15 +129,11 @@ def main(args):
     np.random.seed(seed)
 
     cudnn.benchmark = True
-    args.input_size = 128
-    # simple augmentation
-    transform_train = transforms.Compose([
-            transforms.RandomResizedCrop(args.input_size, scale=(0.2, 1.0), interpolation=3),  # 3 is bicubic
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
-    # dataset_train = datasets.ImageFolder(os.path.join(args.data_path, 'train'), transform=transform_train)
-    dataset_train = build_dataset(is_train=False, args=args)
+
+    # adjust args based on options
+    adjust_args(args)
+
+    dataset_train = build_dataset(is_train=True, args=args)
     print(dataset_train)
 
     if args.distributed:
@@ -159,7 +162,7 @@ def main(args):
     )
     
     # define the model
-    model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, img_size=128)
+    model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, img_size=args.input_size)
 
     model.to(device)
 
