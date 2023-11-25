@@ -35,7 +35,7 @@ from util.datasets import build_dataset
 
 import models_mae
 
-from engine_pretrain import train_one_epoch
+from engine_pretrain import train_one_epoch, evaluate
 
 
 def get_args_parser():
@@ -112,6 +112,11 @@ def get_args_parser():
     parser.add_argument('--project_name', default='', type=str,
                         help='wandb project name')
     
+    # evaluation
+    parser.add_argument('--evaluate', action='store_true', default=False)
+    parser.add_argument('--evaluate_ckpt', default='', type=str,
+                        help="checkpoint path of model to evaluate")
+    
     return parser
 
 def adjust_args(args):
@@ -145,7 +150,7 @@ def main(args):
     adjust_args(args)
 
     dataset_train = build_dataset(is_train=True, args=args)
-    print(dataset_train)
+    dataset_val = build_dataset(is_train=False, args=args)
 
     if args.distributed:
         num_tasks = misc.get_world_size()
@@ -171,6 +176,13 @@ def main(args):
         pin_memory=args.pin_mem,
         drop_last=True,
     )
+    data_loader_val = torch.utils.data.DataLoader(
+        dataset_val,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        pin_memory=args.pin_mem,
+        drop_last=True
+    )
     
     # define the model
     model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, img_size=args.input_size)
@@ -179,6 +191,24 @@ def main(args):
 
     model_without_ddp = model
     print("Model = %s" % str(model_without_ddp))
+
+    if args.evaluate:
+        print(f"Load model from {args.evaluate_ckpt}")
+        # load model from ckpt
+        state_dict = torch.load(args.evaluate_ckpt, map_location=device)
+        model_without_ddp.load_state_dict(state_dict["model"])
+        # evaluate the model
+        eval_stats = evaluate(data_loader_val, model_without_ddp, device, args)
+        log_stats = {**{f'val_{k}': v for k, v in eval_stats.items()}}
+
+        if args.output_dir and misc.is_main_process():
+            if log_writer is not None:
+                log_writer.flush()
+            with open(os.path.join(args.output_dir, "log.txt"), mode="a", encoding="utf-8") as f:
+                f.write(json.dumps(log_stats) + "\n")
+        if args.use_wandb:
+            wandb.log(log_stats)
+        return
 
     eff_batch_size = args.batch_size * args.accum_iter * misc.get_world_size()
     
@@ -234,9 +264,6 @@ def main(args):
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
 
-    if args.use_wandb:
-        wandb.finish()
-
 
 if __name__ == '__main__':
     args = get_args_parser()
@@ -244,3 +271,5 @@ if __name__ == '__main__':
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     main(args)
+    if args.use_wandb:
+        wandb.finish()

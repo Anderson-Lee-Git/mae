@@ -16,7 +16,7 @@ config = Config(RepositoryEnv(".env"))
 # sbatch details
 gpus = 1
 cmd = "wandb agent --count 1 "
-name = f"mae_tiny_imagenet_patch16"
+name = f"eval_mae_tiny_imagenet_patch4"
 cores_per_job = 5
 mem = 64
 time_hours = 8
@@ -30,13 +30,18 @@ scheduler = HyakScheduler(verbose=args.verbose, use_wandb=True, exp_name=name)
 ckpt_base_dir = config("LOG_HOME")
 logfolder = os.path.join(ckpt_base_dir, name)
 sweep_config_path = config("SWEEP_CONFIG_BASE_PATH")
-num_runs = 8
+num_runs = 1
+
+# sweep directory to evaluate
+eval_sweep_dir = "/gscratch/jamiemmt/andersonlee/mae/logs/mae_tiny_imagenet_patch4"
+# find latest checkpoints in the sweep
 
 # default commands and args
 base_flags = [
     "${env}",
     "python",
     "main_pretrain.py",
+    "--evaluate",
     "--use_wandb",
     f"--project_name={name}",
     f"--output_dir={logfolder}",
@@ -46,21 +51,23 @@ base_flags = [
 
 sweep_configuration = {
     "method": "random",
-    "metric": {"goal": "minimize", "name": "train_loss"},
+    "metric": {"goal": "minimize", "name": "val_loss"},
     "parameters":
     {
-        "batch_size": {"values": [128]},
-        "epochs": {"values": [100]},
-        "model": {"values": ["mae_vit_base_patch16"]},
+        "batch_size": {"values": [512]},
+        "model": {"values": ["mae_vit_base_patch4"]},
         "input_size": {"values": [64]},
-        "mask_ratio": {"values": [0.3, 0.5, 0.75]},
-        "weight_decay": {"values": [0.05]},
-        "blr": {"max": 1e-3, "min": 1e-4},
-        "warmup_epochs": {"values": [40]},
         "dataset": {"values": ["tiny_imagenet"]},
         "data_group": {"values": [1]},
         "num_workers": {"values": [5]},
-        "data_subset": {"values": [1.0]}
+        "data_subset": {"values": [1.0]},
+        "evaluate_ckpt": {"values": [
+            "/gscratch/jamiemmt/andersonlee/mae/logs/mae_tiny_imagenet_patch4/apricot-sweep-4/checkpoint-99.pth",
+            "/gscratch/jamiemmt/andersonlee/mae/logs/mae_tiny_imagenet_patch4/dauntless-sweep-8/checkpoint-99.pth",
+            "/gscratch/jamiemmt/andersonlee/mae/logs/mae_tiny_imagenet_patch4/feasible-sweep-3/checkpoint-99.pth",
+            "/gscratch/jamiemmt/andersonlee/mae/logs/mae_tiny_imagenet_patch4/grateful-sweep-7/checkpoint-99.pth",
+            "/gscratch/jamiemmt/andersonlee/mae/logs/mae_tiny_imagenet_patch4/rare-sweep-10/checkpoint-99.pth"
+        ]}
     },
     "command": base_flags
 }

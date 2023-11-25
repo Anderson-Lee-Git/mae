@@ -78,7 +78,7 @@ def train_one_epoch(model: torch.nn.Module,
 
     # visualize the last batch randomly
     p = torch.rand(1)
-    if p < 0.02:
+    if p < 0.02 or epoch % 10 == 0:
         if not os.path.exists(os.path.join(args.log_dir, "examples")):
             os.makedirs(os.path.join(args.log_dir, "examples"))
         visualize_image(samples[0], os.path.join(args.log_dir, "examples/sample_image.png"))
@@ -86,4 +86,30 @@ def train_one_epoch(model: torch.nn.Module,
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
+    return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+
+@torch.no_grad()
+def evaluate(data_loader, model, device, args):
+    metric_logger = misc.MetricLogger(delimiter="  ")
+    header = 'Test:'
+    # switch to evaluation mode
+    model.eval()
+    for data_iter_step, (samples, _) in enumerate(metric_logger.log_every(data_loader, 10, header)):
+        samples = samples.to(device, non_blocking=True)
+        # compute output
+        with torch.cuda.amp.autocast():
+            loss, _, _, reconstructed_images = model(samples, mask_ratio=0.0)
+        
+        loss_value = loss.item()
+        torch.cuda.synchronize()
+        metric_logger.update(loss=loss_value)
+
+        # sample a random image/reconstruction pair in each batch to visualize
+        idx = torch.randint(low=0, high=len(samples), size=(1,)).item()
+        if not os.path.exists(os.path.join(args.log_dir, "examples")):
+            os.makedirs(os.path.join(args.log_dir, "examples"))
+        visualize_image(samples[idx], os.path.join(args.log_dir, f"examples/sample_image_{data_iter_step}.png"))
+        visualize_image(reconstructed_images[idx], os.path.join(args.log_dir, f"examples/sample_reconstruction_{data_iter_step}.png"))
+    # gather the stats from all processes
+    metric_logger.synchronize_between_processes()
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
