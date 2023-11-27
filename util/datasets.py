@@ -19,16 +19,15 @@ from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 # https://github.com/emma-mens/elk-recognition/blob/main/src/multimodal_species/datasets/birds_dataset.py#L498
 import torch
 from torch.utils.data import Dataset
-import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from decouple import Config, RepositoryEnv
 config = Config(RepositoryEnv(".env"))
 
-def build_dataset(is_train, args):
+def build_dataset(is_train, args, include_path=False):
     if args.dataset == "tiny_imagenet":
         dataset = TinyImagenet(transform=simple_transform(args), split='train' if is_train else 'val',
-                                    subset=args.data_subset, group=args.data_group)
+                                subset=args.data_subset, group=args.data_group, include_path=include_path)
     else:
         raise NotImplementedError("Not implemented yet")
     print(dataset)
@@ -80,7 +79,7 @@ def build_transform(is_train, args):
     return transforms.Compose(t)
 
 class TinyImagenet(Dataset):
-    def __init__(self, transform=None, split='train', subset=1.0, group=1) -> None:
+    def __init__(self, transform=None, split='train', subset=1.0, group=1, include_path=False) -> None:
         super().__init__()
         self.split = split
         self.transform = transform
@@ -88,6 +87,7 @@ class TinyImagenet(Dataset):
         self.path = self._get_path()
         self.md = self._get_md()
         self.subset = subset
+        self.include_path = include_path
     
     def __len__(self):
         return int(len(self.md) * self.subset)
@@ -104,7 +104,10 @@ class TinyImagenet(Dataset):
         image = image.convert("RGB")
         if self.transform:
             image = self.transform(image)
-        return image, label
+        if self.include_path:
+            return image, label, img_path
+        else:
+            return image, label
     
     def _get_path(self):
         if self.split == 'train':
@@ -190,7 +193,7 @@ class TinyImagenet(Dataset):
 #             image = self.transform(image)
 #         return image, image
     
-def visualize_image(img: torch.Tensor, path: str):
+def visualize_image(img: torch.Tensor, path: str, wandb_log=False):
     if not isinstance(img, torch.Tensor):
         raise NotImplementedError(f"Please pass in tensor objects, dtype ({type(img)}) is not supported")
     # if passed in batched images

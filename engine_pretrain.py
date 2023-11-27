@@ -14,6 +14,7 @@ from typing import Iterable
 import os
 
 import torch
+import wandb
 
 import util.misc as misc
 import util.lr_sched as lr_sched
@@ -99,6 +100,7 @@ def evaluate(data_loader, model, device, args):
         # compute output
         with torch.cuda.amp.autocast():
             loss, _, _, reconstructed_images = model(samples, mask_ratio=0.0)
+            print(loss)
         
         loss_value = loss.item()
         torch.cuda.synchronize()
@@ -110,6 +112,11 @@ def evaluate(data_loader, model, device, args):
             os.makedirs(os.path.join(args.log_dir, "examples"))
         visualize_image(samples[idx], os.path.join(args.log_dir, f"examples/sample_image_{data_iter_step}.png"))
         visualize_image(reconstructed_images[idx], os.path.join(args.log_dir, f"examples/sample_reconstruction_{data_iter_step}.png"))
+        if args.use_wandb:
+            wandb.log({
+                f"sample_image_{data_iter_step}": wandb.Image(os.path.join(args.log_dir, f"examples/sample_image_{data_iter_step}.png")),
+                f"sample_reconstruction_{data_iter_step}": wandb.Image(os.path.join(args.log_dir, f"examples/sample_reconstruction_{data_iter_step}.png"))
+            })
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}

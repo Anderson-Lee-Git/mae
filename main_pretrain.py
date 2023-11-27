@@ -34,6 +34,7 @@ from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.datasets import build_dataset
 
 import models_mae
+from models_mae import build_model
 
 from engine_pretrain import train_one_epoch, evaluate
 
@@ -59,6 +60,11 @@ def get_args_parser():
     parser.add_argument('--norm_pix_loss', action='store_true',
                         help='Use (per-patch) normalized pixels as targets for computing loss')
     parser.set_defaults(norm_pix_loss=False)
+
+    parser.add_argument('--patch_size', type=int)
+    parser.add_argument('--embed_dim', type=int)
+    parser.add_argument('--decoder_embed_dim', type=int, default=512)
+    parser.add_argument('--num_heads', type=int, default=8)
 
     # Optimizer parameters
     parser.add_argument('--weight_decay', type=float, default=0.05,
@@ -185,7 +191,12 @@ def main(args):
     )
     
     # define the model
-    model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, img_size=args.input_size)
+    if args.model in models_mae.__dict__:
+        model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, img_size=args.input_size)
+    else:
+        model = build_model(patch_size=args.patch_size, embed_dim=args.embed_dim,
+                            num_heads=args.num_heads, decoder_embed_dim=args.decoder_embed_dim,
+                            norm_pix_loss=args.norm_pix_loss, img_size=args.input_size)
 
     model.to(device)
 

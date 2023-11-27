@@ -16,7 +16,7 @@ config = Config(RepositoryEnv(".env"))
 # sbatch details
 gpus = 1
 cmd = "wandb agent --count 1 "
-name = f"eval_mae_tiny_imagenet_patch4"
+name = f"eval_mae_tiny_imagenet_patch4_emb64_dec256"
 cores_per_job = 5
 mem = 64
 time_hours = 8
@@ -30,11 +30,16 @@ scheduler = HyakScheduler(verbose=args.verbose, use_wandb=True, exp_name=name)
 ckpt_base_dir = config("LOG_HOME")
 logfolder = os.path.join(ckpt_base_dir, name)
 sweep_config_path = config("SWEEP_CONFIG_BASE_PATH")
-num_runs = 1
 
 # sweep directory to evaluate
-eval_sweep_dir = "/gscratch/jamiemmt/andersonlee/mae/logs/mae_tiny_imagenet_patch4"
+eval_sweep_dir = "/gscratch/jamiemmt/andersonlee/mae/logs/mae_tiny_imagenet_patch4_emb64_dec256"
+ckpt_list = []
 # find latest checkpoints in the sweep
+for root, dirs, files in os.walk(eval_sweep_dir):
+    for file in files:
+        if file.endswith("79.pth"):
+            ckpt_list.append(os.path.join(root, file))
+num_runs = len(ckpt_list)
 
 # default commands and args
 base_flags = [
@@ -43,6 +48,7 @@ base_flags = [
     "main_pretrain.py",
     "--evaluate",
     "--use_wandb",
+    "--norm_pix_loss",
     f"--project_name={name}",
     f"--output_dir={logfolder}",
     f"--log_dir={logfolder}",
@@ -55,19 +61,17 @@ sweep_configuration = {
     "parameters":
     {
         "batch_size": {"values": [512]},
-        "model": {"values": ["mae_vit_base_patch4"]},
+        "model": {"values": ["mae_vit_base_patch4_emb64"]},
         "input_size": {"values": [64]},
         "dataset": {"values": ["tiny_imagenet"]},
         "data_group": {"values": [1]},
         "num_workers": {"values": [5]},
         "data_subset": {"values": [1.0]},
-        "evaluate_ckpt": {"values": [
-            "/gscratch/jamiemmt/andersonlee/mae/logs/mae_tiny_imagenet_patch4/apricot-sweep-4/checkpoint-99.pth",
-            "/gscratch/jamiemmt/andersonlee/mae/logs/mae_tiny_imagenet_patch4/dauntless-sweep-8/checkpoint-99.pth",
-            "/gscratch/jamiemmt/andersonlee/mae/logs/mae_tiny_imagenet_patch4/feasible-sweep-3/checkpoint-99.pth",
-            "/gscratch/jamiemmt/andersonlee/mae/logs/mae_tiny_imagenet_patch4/grateful-sweep-7/checkpoint-99.pth",
-            "/gscratch/jamiemmt/andersonlee/mae/logs/mae_tiny_imagenet_patch4/rare-sweep-10/checkpoint-99.pth"
-        ]}
+        "evaluate_ckpt": {"values": ckpt_list},
+        "patch_size": {"values": [4]},
+        "embed_dim": {"values": [64]},
+        "decoder_embed_dim": {"values": [256]},
+        "num_heads": {"values": [8]}
     },
     "command": base_flags
 }

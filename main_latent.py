@@ -32,14 +32,15 @@ import timm.optim.optim_factory as optim_factory
 import util.misc as misc
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.datasets import build_dataset
+from util.latent import save_latent
 
 import models_mae
+from models_mae import build_model
 
 from engine_pretrain import train_one_epoch, evaluate
 
-
 def get_args_parser():
-    parser = argparse.ArgumentParser('MAE pre-training', add_help=False)
+    parser = argparse.ArgumentParser('MAE latent generating', add_help=False)
     parser.add_argument('--batch_size', default=64, type=int,
                         help='Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus')
 
@@ -53,6 +54,10 @@ def get_args_parser():
     parser.set_defaults(norm_pix_loss=False)
     # parser.add_argument('--mask_ratio', default=0.75, type=float,
     #                     help='Masking ratio (percentage of removed patches).')
+    parser.add_argument('--patch_size', type=int)
+    parser.add_argument('--embed_dim', type=int)
+    parser.add_argument('--decoder_embed_dim', type=int, default=512)
+    parser.add_argument('--num_heads', type=int, default=8)
 
     # Dataset parameters
     parser.add_argument('--output_dir', default='./output_dir',
@@ -125,7 +130,7 @@ def main(args):
     # adjust args based on options
     adjust_args(args)
 
-    dataset_train = build_dataset(is_train=True, args=args)
+    dataset_train = build_dataset(is_train=True, args=args, include_path=True)
 
     if args.distributed:
         num_tasks = misc.get_world_size()
@@ -148,7 +153,12 @@ def main(args):
     )
     
     # define the model
-    model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, img_size=args.input_size)
+    if args.model in models_mae.__dict__:
+        model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, img_size=args.input_size)
+    else:
+        model = build_model(patch_size=args.patch_size, embed_dim=args.embed_dim,
+                            num_heads=args.num_heads, decoder_embed_dim=args.decoder_embed_dim,
+                            norm_pix_loss=args.norm_pix_loss, img_size=args.input_size)
 
     model.to(device)
 
@@ -162,13 +172,12 @@ def main(args):
     
     # inference
     with torch.no_grad():
-        for samples, _ in data_loader:
+        for samples, _, paths in data_loader:
             samples = samples.to(device, non_blocking=True)
             with torch.cuda.amp.autocast():
-                _, _, _, _ = model(samples, mask_ratio=0.0)
                 latent, _, _ = model.forward_encoder(samples, 0.0)
-                print(latent.shape)
-                return
+                latent = latent[:, 1:, :]
+                save_latent(latent, paths)
 
 
 if __name__ == '__main__':
