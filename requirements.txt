@@ -5,3 +5,4 @@ tensorboard
 pandas
 python-decouple
 matplotlib
+wandb
